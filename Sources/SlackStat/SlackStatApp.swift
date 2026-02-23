@@ -145,6 +145,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
                 switch item.type {
                 case .dm, .mpim:
                     symbolName = nil
+                case .thread:
+                    symbolName = "text.bubble"
                 default:
                     symbolName = item.isPrivate ? "lock" : "number"
                 }

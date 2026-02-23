@@ -31,15 +31,21 @@ import Foundation
             id: "C2", name: "engineering", type: .mention, teamId: "T01",
             hasUnreads: true, mentionCount: 3,
             latestTimestamp: Date(timeIntervalSince1970: 1_771_625_710)),
+        ConversationItem(
+            id: "__threads__", name: "Threads", type: .thread, teamId: "T01",
+            hasUnreads: true, mentionCount: 2,
+            latestTimestamp: Date(timeIntervalSince1970: 1_771_625_720)),
     ]
 
     let agg = AggregatedCounts(from: items)
     #expect(agg.totalDMs == 1)
     #expect(agg.totalMentions == 1)
     #expect(agg.totalChannels == 1)
+    #expect(agg.totalThreads == 1)
     #expect(agg.mostRecentDM == Date(timeIntervalSince1970: 1_771_625_714))
     #expect(agg.mostRecentMention == Date(timeIntervalSince1970: 1_771_625_710))
     #expect(agg.mostRecentChannel == Date(timeIntervalSince1970: 1_771_625_700))
+    #expect(agg.mostRecentThread == Date(timeIntervalSince1970: 1_771_625_720))
 }
 
 @Test func testAggregatedCountsPerCategoryTimestamps() throws {
@@ -141,10 +147,11 @@ import Foundation
 @Test func testMenuBarTitleAllCategories() {
     let now = Date()
     let agg = AggregatedCounts(
-        totalDMs: 4, totalMentions: 2, totalChannels: 15,
+        totalDMs: 4, totalMentions: 2, totalChannels: 15, totalThreads: 3,
         mostRecentDM: now.addingTimeInterval(-180),
         mostRecentMention: now.addingTimeInterval(-3600),
-        mostRecentChannel: now.addingTimeInterval(-2700)
+        mostRecentChannel: now.addingTimeInterval(-2700),
+        mostRecentThread: now.addingTimeInterval(-120)
     )
     let title = MenuBarTitle.format(aggregated: agg, now: now)
     #expect(title.contains("4"))
@@ -153,6 +160,10 @@ import Foundation
     #expect(title.contains("1h"))
     #expect(title.contains("15"))
     #expect(title.contains("45m"))
+    // Thread count and relative time
+    #expect(title.contains("3"))
+    #expect(title.contains("2m"))
+    #expect(title.contains("\u{1F9F5}"))
 }
 
 @Test func testMenuBarTitleHidesZeroCategories() {
@@ -164,6 +175,21 @@ import Foundation
     let title = MenuBarTitle.format(aggregated: agg, now: now)
     #expect(title.contains("3"))
     #expect(title.contains("1m"))
+    #expect(!title.contains("@ "))
+    #expect(!title.contains("# "))
+    #expect(!title.contains("\u{1F9F5}"))
+}
+
+@Test func testMenuBarTitleThreadsOnly() {
+    let now = Date()
+    let agg = AggregatedCounts(
+        totalThreads: 5,
+        mostRecentThread: now.addingTimeInterval(-300)
+    )
+    let title = MenuBarTitle.format(aggregated: agg, now: now)
+    #expect(title.contains("\u{1F9F5}"))
+    #expect(title.contains("5"))
+    #expect(title.contains("5m"))
     #expect(!title.contains("@ "))
     #expect(!title.contains("# "))
 }
@@ -287,12 +313,52 @@ import Foundation
         ConversationItem(id: "C2", name: "#eng", type: .mention,
                          teamId: "W1", hasUnreads: true, mentionCount: 2,
                          latestTimestamp: Date()),
+        ConversationItem(id: "__threads__", name: "Threads", type: .thread,
+                         teamId: "W1", hasUnreads: true, mentionCount: 1,
+                         latestTimestamp: Date()),
     ]
 
     let grouped = StateStore.groupBySections(items: items, sections: [])
-    // Fallback: DMs, Mentions, Channels (only groups with items)
-    #expect(grouped.count == 3)
+    // Fallback: DMs, Mentions, Threads, Channels (only groups with items)
+    #expect(grouped.count == 4)
     #expect(grouped[0].section.name == "Direct Messages")
     #expect(grouped[1].section.name == "Mentions")
-    #expect(grouped[2].section.name == "Channels")
+    #expect(grouped[2].section.name == "Threads")
+    #expect(grouped[3].section.name == "Channels")
+}
+
+@Test func testSectionGroupingWithThreads() {
+    let sections = [
+        ChannelSection(id: "S1", name: "Starred", type: "starred", channelIds: ["C1"]),
+    ]
+    let items = [
+        ConversationItem(id: "C1", name: "#general", type: .channel,
+                         teamId: "W1", hasUnreads: true, mentionCount: 0,
+                         latestTimestamp: Date()),
+        ConversationItem(id: "__threads__", name: "Threads", type: .thread,
+                         teamId: "W1", hasUnreads: true, mentionCount: 2,
+                         latestTimestamp: Date()),
+    ]
+
+    let grouped = StateStore.groupBySections(items: items, sections: sections)
+    // C1 in Starred, then Threads section (no uncategorized)
+    #expect(grouped.count == 2)
+    #expect(grouped[0].section.name == "Starred")
+    #expect(grouped[1].section.name == "Threads")
+    #expect(grouped[1].items[0].type == .thread)
+}
+
+@Test func testAggregatedCountsThreadsHasActivity() {
+    // Only threads — should still count as activity
+    let items = [
+        ConversationItem(
+            id: "__threads__", name: "Threads", type: .thread, teamId: "T01",
+            hasUnreads: true, mentionCount: 1, latestTimestamp: Date()),
+    ]
+    let agg = AggregatedCounts(from: items)
+    #expect(agg.hasActivity == true)
+    #expect(agg.totalThreads == 1)
+    #expect(agg.totalDMs == 0)
+    #expect(agg.totalMentions == 0)
+    #expect(agg.totalChannels == 0)
 }
