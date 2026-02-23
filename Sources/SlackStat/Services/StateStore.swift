@@ -19,10 +19,13 @@ struct ConversationItem: Identifiable, Sendable {
     var mentionCount: Int
     var latestTimestamp: Date?
     var userId: String?  // For DMs, the other user's ID
+    var isPrivate: Bool  // Private channel (lock icon vs #)
+    var isExtShared: Bool  // Slack Connect / externally shared channel
 
     init(
         id: String, name: String, type: ConversationType, teamId: String,
-        hasUnreads: Bool, mentionCount: Int, latestTimestamp: Date?, userId: String? = nil
+        hasUnreads: Bool, mentionCount: Int, latestTimestamp: Date?, userId: String? = nil,
+        isPrivate: Bool = false, isExtShared: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -32,11 +35,13 @@ struct ConversationItem: Identifiable, Sendable {
         self.mentionCount = mentionCount
         self.latestTimestamp = latestTimestamp
         self.userId = userId
+        self.isPrivate = isPrivate
+        self.isExtShared = isExtShared
     }
 
     init(
         from count: ConversationCount, name: String, type: ConversationType,
-        teamId: String, userId: String? = nil
+        teamId: String, userId: String? = nil, isPrivate: Bool = false, isExtShared: Bool = false
     ) {
         self.id = count.id
         self.name = name
@@ -46,6 +51,8 @@ struct ConversationItem: Identifiable, Sendable {
         self.mentionCount = count.mentionCount
         self.latestTimestamp = count.latestDate
         self.userId = userId
+        self.isPrivate = isPrivate
+        self.isExtShared = isExtShared
     }
 
 }
@@ -170,14 +177,28 @@ final class StateStore: ObservableObject {
     func pollSections() async {
         guard let cookie = cachedCookie, let token = cachedToken else { return }
 
+        let domain = workspace?.domain ?? "slack"
+        let teamId = workspace?.id ?? "default"
+        let client = SlackAPIClient(token: token, cookie: cookie, domain: domain)
+
+        // Try the dedicated channel sections endpoint first
         do {
-            let domain = workspace?.domain ?? "slack"
-            let teamId = workspace?.id ?? "default"
-            let client = SlackAPIClient(token: token, cookie: cookie, domain: domain)
+            let response = try await client.fetchChannelSections(teamId: teamId)
+            let sections = response.channelSections
+            if !sections.isEmpty {
+                self.sidebarSections = sections
+                return
+            }
+        } catch {
+            // Fall through to userBoot fallback
+        }
+
+        // Fall back to client.userBoot
+        do {
             let response = try await client.fetchUserBoot(teamId: teamId)
             self.sidebarSections = response.channelSections
         } catch {
-            // Silently keep cached sections on failure
+            // Section loading failed — keep existing sections if any
         }
     }
 
@@ -255,14 +276,14 @@ final class StateStore: ObservableObject {
 
             // Channels with @mentions (show even if muted — mentions are important)
             for ch in counts.channels where ch.mentionCount > 0 {
-                let name = await resolveChannelName(ch.id, client: client, teamId: teamId)
-                items.append(ConversationItem(from: ch, name: name, type: .mention, teamId: teamId))
+                let (name, isPrivate, isExtShared) = await resolveChannelName(ch.id, client: client, teamId: teamId)
+                items.append(ConversationItem(from: ch, name: name, type: .mention, teamId: teamId, isPrivate: isPrivate, isExtShared: isExtShared))
             }
 
             // Channels with unreads (no mentions) — skip muted channels
             for ch in counts.channels where ch.hasUnreads && ch.mentionCount == 0 && !mutedIds.contains(ch.id) {
-                let name = await resolveChannelName(ch.id, client: client, teamId: teamId)
-                items.append(ConversationItem(from: ch, name: name, type: .channel, teamId: teamId))
+                let (name, isPrivate, isExtShared) = await resolveChannelName(ch.id, client: client, teamId: teamId)
+                items.append(ConversationItem(from: ch, name: name, type: .channel, teamId: teamId, isPrivate: isPrivate, isExtShared: isExtShared))
             }
 
             for im in counts.ims where im.hasUnreads || im.mentionCount > 0 {
@@ -271,7 +292,7 @@ final class StateStore: ObservableObject {
             }
 
             for mpim in counts.mpims where mpim.hasUnreads || mpim.mentionCount > 0 {
-                let name = await resolveChannelName(mpim.id, client: client, teamId: teamId)
+                let (name, _, _) = await resolveChannelName(mpim.id, client: client, teamId: teamId)
                 items.append(ConversationItem(from: mpim, name: name, type: .dm, teamId: teamId))
             }
 
@@ -283,21 +304,28 @@ final class StateStore: ObservableObject {
 
     // MARK: - Name Resolution
 
-    private func resolveChannelName(_ channelId: String, client: SlackAPIClient, teamId: String? = nil) async -> String {
-        if let cached = nameCache.channelName(for: channelId) {
-            return cached
+    /// Returns (name, isPrivate, isExtShared) for a channel.
+    private func resolveChannelName(_ channelId: String, client: SlackAPIClient, teamId: String? = nil) async -> (String, Bool, Bool) {
+        if let cached = nameCache.channelName(for: channelId),
+           let cachedPrivate = nameCache.isChannelPrivate(for: channelId),
+           let cachedExtShared = nameCache.isChannelExtShared(for: channelId) {
+            return (cached, cachedPrivate, cachedExtShared)
         }
 
         do {
             let info = try await client.fetchConversationInfo(channelId: channelId, teamId: teamId)
             let name = info.channel.name ?? channelId
+            let isPrivate = info.channel.isPrivate == true || info.channel.isGroup == true
+            let isExtShared = info.channel.isExtShared == true
             nameCache.setChannelName(name, for: channelId)
+            nameCache.setChannelPrivate(isPrivate, for: channelId)
+            nameCache.setChannelExtShared(isExtShared, for: channelId)
             if info.channel.isIm == true, let userId = info.channel.user {
                 nameCache.setDMUser(userId, for: channelId)
             }
-            return name
+            return (name, isPrivate, isExtShared)
         } catch {
-            return channelId
+            return (channelId, false, false)
         }
     }
 
@@ -342,10 +370,24 @@ final class StateStore: ObservableObject {
             return fallbackGrouping(items: items)
         }
 
+        // Virtual section types that act as catch-alls for unassigned items
+        let virtualTypes: Set<String> = ["channels", "slack_connect", "direct_messages"]
+
         var result: [GroupedSection] = []
         var assigned: Set<String> = []
 
-        for section in sections {
+        // Extract mentions into a dedicated section first — these are high-priority
+        // and should always appear at the top regardless of sidebar section membership
+        let mentions = items.filter { $0.type == .mention }
+            .sorted { ($0.latestTimestamp ?? .distantPast) > ($1.latestTimestamp ?? .distantPast) }
+        if !mentions.isEmpty {
+            let mentionSection = ChannelSection(id: "mentions", name: "Mentions", type: "mentions", channelIds: [])
+            result.append(GroupedSection(section: mentionSection, items: mentions))
+            mentions.forEach { assigned.insert($0.id) }
+        }
+
+        // First pass: assign non-mention items to sections with explicit channel IDs
+        for section in sections where !virtualTypes.contains(section.type) {
             let sectionChannelIds = Set(section.channelIds)
             let matching = items.filter { sectionChannelIds.contains($0.id) && !assigned.contains($0.id) }
                 .sorted { ($0.latestTimestamp ?? .distantPast) > ($1.latestTimestamp ?? .distantPast) }
@@ -355,7 +397,38 @@ final class StateStore: ObservableObject {
             }
         }
 
-        // Uncategorized: items not in any section
+        // Second pass: assign remaining items to virtual sections
+        let unassigned = items.filter { !assigned.contains($0.id) }
+        for section in sections where virtualTypes.contains(section.type) {
+            let matching: [ConversationItem]
+            switch section.type {
+            case "direct_messages":
+                matching = unassigned.filter { ($0.type == .dm || $0.type == .mpim) && !assigned.contains($0.id) }
+            case "slack_connect":
+                matching = unassigned.filter { $0.isExtShared && !assigned.contains($0.id) }
+            case "channels":
+                // Catch-all for remaining channel items not yet assigned
+                matching = unassigned.filter {
+                    $0.type == .channel && !$0.isExtShared && !assigned.contains($0.id)
+                }
+            default:
+                matching = []
+            }
+            let sorted = matching.sorted { ($0.latestTimestamp ?? .distantPast) > ($1.latestTimestamp ?? .distantPast) }
+            if !sorted.isEmpty {
+                // Rename "Slack Connect" to match Slack's UI label
+                let displaySection: ChannelSection
+                if section.type == "slack_connect" {
+                    displaySection = ChannelSection(id: section.id, name: "External Connections", type: section.type, channelIds: section.channelIds)
+                } else {
+                    displaySection = section
+                }
+                result.append(GroupedSection(section: displaySection, items: sorted))
+                sorted.forEach { assigned.insert($0.id) }
+            }
+        }
+
+        // Anything still unassigned goes to Uncategorized
         let uncategorized = items.filter { !assigned.contains($0.id) }
             .sorted { ($0.latestTimestamp ?? .distantPast) > ($1.latestTimestamp ?? .distantPast) }
         if !uncategorized.isEmpty {
