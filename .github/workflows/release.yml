@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: swift build -c release
+
+      - name: Create .app bundle
+        run: |
+          APP_DIR="SlackStat.app/Contents"
+          mkdir -p "$APP_DIR/MacOS"
+          mkdir -p "$APP_DIR/Resources"
+          cp .build/release/SlackStat "$APP_DIR/MacOS/SlackStat"
+
+          # Copy icon if it exists
+          if [ -f "Resources/AppIcon.icns" ]; then
+            cp Resources/AppIcon.icns "$APP_DIR/Resources/AppIcon.icns"
+          fi
+
+          # Create Info.plist
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > "$APP_DIR/Info.plist" << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>SlackStat</string>
+              <key>CFBundleDisplayName</key>
+              <string>SlackStat</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.slackstat.app</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundleExecutable</key>
+              <string>SlackStat</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>14.0</string>
+              <key>LSUIElement</key>
+              <true/>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Zip app bundle
+        run: zip -r SlackStat.zip SlackStat.app
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SlackStat.zip
+          body: |
+            ## SlackStat ${{ github.ref_name }}
+
+            ### Install
+
+            1. Download `SlackStat.zip` below
+            2. Unzip and move `SlackStat.app` to your Applications folder
+            3. Since the app is unsigned, remove the quarantine flag:
+               ```
+               xattr -cr /Applications/SlackStat.app
+               ```
+            4. Open SlackStat from Applications
+
+            ### Build from source
+
+            ```bash
+            swift build -c release
+            ```
+          generate_release_notes: true
