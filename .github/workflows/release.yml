@@ -73,15 +73,19 @@ jobs:
 
             1. Download `SlackStat.zip` below
             2. Unzip and move `SlackStat.app` to your Applications folder
-            3. Since the app is unsigned, remove the quarantine flag:
+            3. **Important:** macOS will show a warning that SlackStat "is damaged and can't be opened." This is normal — it happens because the app is unsigned. Run this in Terminal to fix it:
                ```
-               xattr -cr /Applications/SlackStat.app
+               xattr -cr /path/to/SlackStat.app
                ```
+               You only need to do this once.
             4. Open SlackStat from Applications
 
             ### Build from source
 
             ```bash
+            git clone https://github.com/slackstat/menubar.git
+            cd menubar
             swift build -c release
+            cp .build/release/SlackStat /usr/local/bin/
             ```
           generate_release_notes: true

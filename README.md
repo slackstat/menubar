@@ -35,13 +35,13 @@ Then run `SlackStat` from Terminal, or move the binary wherever you prefer.
 
 Download the latest `.app` bundle from [Releases](https://github.com/slackstat/menubar/releases).
 
-Since the app is not signed with an Apple Developer certificate, macOS Gatekeeper will block it on first launch. To allow it:
-
-```bash
-xattr -cr /path/to/SlackStat.app
-```
-
-Or right-click the app in Finder and select "Open".
+> **Important:** macOS will show a warning that SlackStat "is damaged and can't be opened." This is normal — it happens because the app is not signed with an Apple Developer certificate. To fix it, run this command in Terminal before opening the app:
+>
+> ```bash
+> xattr -cr /path/to/SlackStat.app
+> ```
+>
+> Then open SlackStat normally. You only need to do this once.
 
 ## How It Works
 
