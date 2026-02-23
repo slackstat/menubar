@@ -8,6 +8,7 @@ enum ConversationType: Sendable {
     case mention  // channel with @mentions
     case channel
     case mpim
+    case thread   // subscribed thread replies (threads you started or followed)
 }
 
 struct ConversationItem: Identifiable, Sendable {
@@ -61,35 +62,43 @@ struct AggregatedCounts: Sendable {
     let totalDMs: Int
     let totalMentions: Int
     let totalChannels: Int
+    let totalThreads: Int
     let mostRecentDM: Date?
     let mostRecentMention: Date?
     let mostRecentChannel: Date?
+    let mostRecentThread: Date?
 
     var hasActivity: Bool {
-        totalDMs > 0 || totalMentions > 0 || totalChannels > 0
+        totalDMs > 0 || totalMentions > 0 || totalChannels > 0 || totalThreads > 0
     }
 
     init(from items: [ConversationItem]) {
         let dms = items.filter { $0.type == .dm || $0.type == .mpim }
         let mentions = items.filter { $0.type == .mention }
         let channels = items.filter { $0.type == .channel }
+        let threads = items.filter { $0.type == .thread }
 
         self.totalDMs = dms.count
         self.totalMentions = mentions.count
         self.totalChannels = channels.count
+        self.totalThreads = threads.count
         self.mostRecentDM = dms.compactMap(\.latestTimestamp).max()
         self.mostRecentMention = mentions.compactMap(\.latestTimestamp).max()
         self.mostRecentChannel = channels.compactMap(\.latestTimestamp).max()
+        self.mostRecentThread = threads.compactMap(\.latestTimestamp).max()
     }
 
-    init(totalDMs: Int = 0, totalMentions: Int = 0, totalChannels: Int = 0,
-         mostRecentDM: Date? = nil, mostRecentMention: Date? = nil, mostRecentChannel: Date? = nil) {
+    init(totalDMs: Int = 0, totalMentions: Int = 0, totalChannels: Int = 0, totalThreads: Int = 0,
+         mostRecentDM: Date? = nil, mostRecentMention: Date? = nil, mostRecentChannel: Date? = nil,
+         mostRecentThread: Date? = nil) {
         self.totalDMs = totalDMs
         self.totalMentions = totalMentions
         self.totalChannels = totalChannels
+        self.totalThreads = totalThreads
         self.mostRecentDM = mostRecentDM
         self.mostRecentMention = mostRecentMention
         self.mostRecentChannel = mostRecentChannel
+        self.mostRecentThread = mostRecentThread
     }
 }
 
@@ -296,6 +305,15 @@ final class StateStore: ObservableObject {
                 items.append(ConversationItem(from: mpim, name: name, type: .dm, teamId: teamId))
             }
 
+            // Threads you're subscribed to (started or followed)
+            let threads = counts.threads
+            if threads.hasUnreads || threads.mentionCount > 0 {
+                items.append(ConversationItem(
+                    id: "__threads__", name: "Threads", type: .thread, teamId: teamId,
+                    hasUnreads: threads.hasUnreads, mentionCount: threads.mentionCount,
+                    latestTimestamp: Date()))
+            }
+
             return (items, badges)
         } catch {
             return nil
@@ -386,6 +404,11 @@ final class StateStore: ObservableObject {
             mentions.forEach { assigned.insert($0.id) }
         }
 
+        // Thread items use a synthetic ID and won't match sidebar sections —
+        // pull them out first so they get their own group.
+        let threadItems = items.filter { $0.type == .thread }
+        threadItems.forEach { assigned.insert($0.id) }
+
         // First pass: assign non-mention items to sections with explicit channel IDs
         for section in sections where !virtualTypes.contains(section.type) {
             let sectionChannelIds = Set(section.channelIds)
@@ -428,6 +451,12 @@ final class StateStore: ObservableObject {
             }
         }
 
+        // Threads section (after sidebar sections, before uncategorized)
+        if !threadItems.isEmpty {
+            let threadSection = ChannelSection(id: "threads", name: "Threads", type: "threads", channelIds: [])
+            result.append(GroupedSection(section: threadSection, items: threadItems))
+        }
+
         // Anything still unassigned goes to Uncategorized
         let uncategorized = items.filter { !assigned.contains($0.id) }
             .sorted { ($0.latestTimestamp ?? .distantPast) > ($1.latestTimestamp ?? .distantPast) }
@@ -456,6 +485,14 @@ final class StateStore: ObservableObject {
             result.append(GroupedSection(
                 section: ChannelSection(id: "fallback-mentions", name: "Mentions", type: "mentions", channelIds: []),
                 items: mentions))
+        }
+
+        let threads = items.filter { $0.type == .thread }
+            .sorted { ($0.latestTimestamp ?? .distantPast) > ($1.latestTimestamp ?? .distantPast) }
+        if !threads.isEmpty {
+            result.append(GroupedSection(
+                section: ChannelSection(id: "fallback-threads", name: "Threads", type: "threads", channelIds: []),
+                items: threads))
         }
 
         let channels = items.filter { $0.type == .channel }
