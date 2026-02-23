@@ -83,6 +83,9 @@ struct ConversationInfo: Codable, Sendable {
     let isChannel: Bool?
     let isIm: Bool?
     let isMpim: Bool?
+    let isPrivate: Bool?
+    let isGroup: Bool?
+    let isExtShared: Bool?
     let user: String?
 
     enum CodingKeys: String, CodingKey {
@@ -90,6 +93,9 @@ struct ConversationInfo: Codable, Sendable {
         case isChannel = "is_channel"
         case isIm = "is_im"
         case isMpim = "is_mpim"
+        case isPrivate = "is_private"
+        case isGroup = "is_group"
+        case isExtShared = "is_ext_shared"
     }
 }
 
@@ -251,6 +257,12 @@ struct UserBootSectionsResponse: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case ok
         case channelSections = "channel_sections"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.ok = try container.decode(Bool.self, forKey: .ok)
+        self.channelSections = (try? container.decode([ChannelSection].self, forKey: .channelSections)) ?? []
     }
 }
 

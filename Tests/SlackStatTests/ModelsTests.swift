@@ -200,3 +200,110 @@ import Foundation
     #expect(response.channelSections[0].channelIds == ["C123", "C456"])
     #expect(response.channelSections[2].channelIds == ["D001", "D002"])
 }
+
+@Test func testUserBootMissingSections() throws {
+    // client.userBoot may return a response without channel_sections key
+    let json = """
+    {
+        "ok": true,
+        "self": { "id": "U123" },
+        "team": { "id": "T456" }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(UserBootSectionsResponse.self, from: json)
+    #expect(response.ok == true)
+    #expect(response.channelSections.isEmpty)
+}
+
+@Test func testConversationInfoPrivateChannel() throws {
+    let json = """
+    {
+        "ok": true,
+        "channel": {
+            "id": "C00PRIV01",
+            "name": "secret-channel",
+            "is_channel": false,
+            "is_group": true,
+            "is_im": false,
+            "is_mpim": false,
+            "is_private": true,
+            "user": ""
+        }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(ConversationInfoResponse.self, from: json)
+    #expect(response.channel.name == "secret-channel")
+    #expect(response.channel.isPrivate == true)
+    #expect(response.channel.isGroup == true)
+}
+
+@Test func testConversationInfoPublicChannel() throws {
+    let json = """
+    {
+        "ok": true,
+        "channel": {
+            "id": "C00PUB01",
+            "name": "general",
+            "is_channel": true,
+            "is_group": false,
+            "is_im": false,
+            "is_mpim": false,
+            "is_private": false,
+            "user": ""
+        }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(ConversationInfoResponse.self, from: json)
+    #expect(response.channel.name == "general")
+    #expect(response.channel.isPrivate == false)
+    #expect(response.channel.isGroup == false)
+}
+
+@Test func testConversationInfoExtSharedChannel() throws {
+    let json = """
+    {
+        "ok": true,
+        "channel": {
+            "id": "C00EXT01",
+            "name": "partner-channel",
+            "is_channel": true,
+            "is_group": false,
+            "is_im": false,
+            "is_mpim": false,
+            "is_private": false,
+            "is_ext_shared": true,
+            "is_shared": true,
+            "user": ""
+        }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(ConversationInfoResponse.self, from: json)
+    #expect(response.channel.name == "partner-channel")
+    #expect(response.channel.isExtShared == true)
+}
+
+@Test func testConversationInfoNonExtSharedChannel() throws {
+    let json = """
+    {
+        "ok": true,
+        "channel": {
+            "id": "C00REG01",
+            "name": "general",
+            "is_channel": true,
+            "is_group": false,
+            "is_im": false,
+            "is_mpim": false,
+            "is_private": false,
+            "is_ext_shared": false,
+            "user": ""
+        }
+    }
+    """.data(using: .utf8)!
+
+    let response = try JSONDecoder().decode(ConversationInfoResponse.self, from: json)
+    #expect(response.channel.isExtShared == false)
+}

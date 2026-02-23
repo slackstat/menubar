@@ -94,6 +94,14 @@ final class SlackAPIClient: Sendable {
         return try await execute(request: request)
     }
 
+    /// Try the dedicated channel sections endpoint
+    func fetchChannelSections(teamId: String? = nil) async throws -> UserBootSectionsResponse {
+        var params: [String: String] = [:]
+        if let teamId { params["team_id"] = teamId }
+        let request = buildRequest(method: "users.channelSections.list", params: params)
+        return try await execute(request: request)
+    }
+
     // MARK: - Request Execution
 
     private func execute<T: Decodable>(request: URLRequest) async throws -> T {

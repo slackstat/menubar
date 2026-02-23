@@ -123,25 +123,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             // Section header (bold)
             let header = NSMenuItem(title: group.section.name, action: nil, keyEquivalent: "")
             header.isEnabled = false
-            let headerFont = NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+            let headerFont = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
             header.attributedTitle = NSAttributedString(
                 string: group.section.name, attributes: [.font: headerFont])
             menu.addItem(header)
 
             // Conversation rows
             for item in group.items {
-                let prefix = (item.type == .dm || item.type == .mpim) ? "" : "#"
                 let badge = item.mentionCount > 0 ? " (\(item.mentionCount))" : ""
                 let timeStr = item.latestTimestamp.map { RelativeTime.format($0) } ?? ""
-                let timeDisplay = timeStr.isEmpty ? "" : "  \(timeStr)"
 
-                let title = "  \(prefix)\(item.name)\(badge)\(timeDisplay)"
-                let menuItem = NSMenuItem(
-                    title: title,
-                    action: #selector(openConversation(_:)),
-                    keyEquivalent: "")
+                // Build attributed string with inline SF Symbol icon to avoid
+                // the image column that NSMenuItem.image creates.
+                // Use a right-aligned tab stop to push relative time to the right edge.
+                let para = NSMutableParagraphStyle()
+                let rightTab = NSTextTab(textAlignment: .right, location: 250)
+                para.tabStops = [rightTab]
+
+                let titleStr = NSMutableAttributedString()
+                let symbolName: String?
+                switch item.type {
+                case .dm, .mpim:
+                    symbolName = nil
+                default:
+                    symbolName = item.isPrivate ? "lock" : "number"
+                }
+                if let symbolName,
+                   let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+                    let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+                    let sized = img.withSymbolConfiguration(config) ?? img
+                    let attachment = NSTextAttachment()
+                    attachment.image = sized
+                    titleStr.append(NSAttributedString(attachment: attachment))
+                    titleStr.append(NSAttributedString(string: " "))
+                }
+                titleStr.append(NSAttributedString(string: "\(item.name)\(badge)"))
+                if !timeStr.isEmpty {
+                    let dimColor = NSColor.secondaryLabelColor
+                    titleStr.append(NSAttributedString(string: "\t"))
+                    titleStr.append(NSAttributedString(
+                        string: timeStr,
+                        attributes: [.foregroundColor: dimColor]))
+                }
+                titleStr.addAttribute(.paragraphStyle, value: para, range: NSRange(location: 0, length: titleStr.length))
+
+                let menuItem = NSMenuItem(title: "", action: #selector(openConversation(_:)), keyEquivalent: "")
+                menuItem.attributedTitle = titleStr
                 menuItem.target = self
                 menuItem.representedObject = ConversationItemRef(item)
+
                 menu.addItem(menuItem)
             }
 
