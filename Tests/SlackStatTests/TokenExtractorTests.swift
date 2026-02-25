@@ -67,4 +67,9 @@ import Foundation
 @Test func testSlackDataPathDetection() {
     let path = TokenExtractor.slackDataPath
     #expect(path.hasSuffix("Application Support/Slack"))
+    // Must be one of the two known locations
+    let isDirectDownload = path.contains("Library/Application Support/Slack")
+        && !path.contains("Containers")
+    let isAppStore = path.contains("Containers/com.tinyspeck.slackmacgap")
+    #expect(isDirectDownload || isAppStore)
 }

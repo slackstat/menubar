@@ -11,7 +11,7 @@ enum TokenExtractorError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .slackNotInstalled: return "Slack desktop app not found"
+        case .slackNotInstalled: return "Slack data not found — is Slack installed and signed in?"
         case .noTokenFound: return "No xoxc token found in Slack storage"
         case .cookieDecryptionFailed(let msg): return "Cookie decryption failed: \(msg)"
         case .keychainAccessFailed: return "Cannot access Slack Safe Storage in Keychain"
@@ -21,9 +21,21 @@ enum TokenExtractorError: Error, LocalizedError {
 }
 
 enum TokenExtractor {
+    /// Resolves the Slack data directory, checking the direct-download location
+    /// first, then the Mac App Store sandboxed container.
     static let slackDataPath: String = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/Library/Application Support/Slack"
+        let directDownload = "\(home)/Library/Application Support/Slack"
+        let appStore = "\(home)/Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack"
+        let fm = FileManager.default
+        if fm.fileExists(atPath: directDownload) {
+            return directDownload
+        } else if fm.fileExists(atPath: appStore) {
+            return appStore
+        }
+        // Fall back to the direct-download path; extractCredentials() will
+        // throw .slackNotInstalled when it checks for the directory.
+        return directDownload
     }()
 
     private static let levelDBPath: String = {
