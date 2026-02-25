@@ -16,9 +16,13 @@ enum MenuBarTitle {
             parts.append("@ \(aggregated.totalMentions) (\(rel))")
         }
 
-        if aggregated.totalThreads > 0, let ts = aggregated.mostRecentThread {
-            let rel = RelativeTime.format(ts, now: now)
-            parts.append("\u{1F9F5} \(aggregated.totalThreads) (\(rel))")
+        if aggregated.totalThreads > 0 {
+            if let ts = aggregated.mostRecentThread {
+                let rel = RelativeTime.format(ts, now: now)
+                parts.append("\u{1F9F5} \(aggregated.totalThreads) (\(rel))")
+            } else {
+                parts.append("\u{1F9F5} \(aggregated.totalThreads)")
+            }
         }
 
         if aggregated.totalChannels > 0, let ts = aggregated.mostRecentChannel {

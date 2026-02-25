@@ -21,7 +21,7 @@ import Foundation
              "updated": "1771616830.001300", "history_invalid": "1771435153.000100",
              "mention_count": 0, "has_unreads": false}
         ],
-        "threads": {"has_unreads": false, "mention_count": 0},
+        "threads": {"has_unreads": false, "mention_count": 0, "latest": "1771625714.453859"},
         "channel_badges": {"channels": 1, "dms": 2, "app_dms": 0, "thread_mentions": 0, "thread_unreads": 0}
     }
     """.data(using: .utf8)!
@@ -36,6 +36,8 @@ import Foundation
     #expect(response.ims[0].id == "D00TEST01")
     #expect(response.mpims.count == 1)
     #expect(response.threads.mentionCount == 0)
+    #expect(response.threads.latestDate != nil)
+    #expect(response.threads.latestDate == Date(timeIntervalSince1970: 1_771_625_714))
     #expect(response.channelBadges.dms == 2)
 }
 
@@ -306,4 +308,28 @@ import Foundation
 
     let response = try JSONDecoder().decode(ConversationInfoResponse.self, from: json)
     #expect(response.channel.isExtShared == false)
+}
+
+@Test func testThreadCountWithoutLatest() throws {
+    let json = """
+    {"has_unreads": true, "mention_count": 3}
+    """.data(using: .utf8)!
+
+    let thread = try JSONDecoder().decode(ThreadCount.self, from: json)
+    #expect(thread.hasUnreads == true)
+    #expect(thread.mentionCount == 3)
+    #expect(thread.latest == nil)
+    #expect(thread.latestDate == nil)
+}
+
+@Test func testThreadCountWithLatest() throws {
+    let json = """
+    {"has_unreads": true, "mention_count": 1, "latest": "1771625714.453859"}
+    """.data(using: .utf8)!
+
+    let thread = try JSONDecoder().decode(ThreadCount.self, from: json)
+    #expect(thread.hasUnreads == true)
+    #expect(thread.mentionCount == 1)
+    #expect(thread.latest == "1771625714.453859")
+    #expect(thread.latestDate == Date(timeIntervalSince1970: 1_771_625_714))
 }

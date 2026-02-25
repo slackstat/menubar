@@ -120,13 +120,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             items: stateStore.items, sections: stateStore.sidebarSections)
 
         for group in grouped {
-            // Section header (bold)
-            let header = NSMenuItem(title: group.section.name, action: nil, keyEquivalent: "")
-            header.isEnabled = false
-            let headerFont = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
-            header.attributedTitle = NSAttributedString(
-                string: group.section.name, attributes: [.font: headerFont])
-            menu.addItem(header)
+            // Skip the section header for threads — the single item already says "Threads"
+            if group.section.type != "threads" {
+                // Section header (bold)
+                let header = NSMenuItem(title: group.section.name, action: nil, keyEquivalent: "")
+                header.isEnabled = false
+                let headerFont = NSFont.boldSystemFont(ofSize: NSFont.smallSystemFontSize)
+                header.attributedTitle = NSAttributedString(
+                    string: group.section.name, attributes: [.font: headerFont])
+                menu.addItem(header)
+            }
 
             // Conversation rows
             for item in group.items {
@@ -211,7 +214,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
     @objc func openConversation(_ sender: NSMenuItem) {
         guard let ref = sender.representedObject as? ConversationItemRef else { return }
-        DeepLinkHandler.openInSlack(teamId: ref.item.teamId, channelId: ref.item.id)
+        if ref.item.type == .thread {
+            DeepLinkHandler.openSlack(teamId: ref.item.teamId)
+        } else {
+            DeepLinkHandler.openInSlack(teamId: ref.item.teamId, channelId: ref.item.id)
+        }
     }
 
     @objc func showPrefsWindow() {

@@ -48,10 +48,20 @@ struct ConversationCount: Codable, Sendable, Identifiable {
 struct ThreadCount: Codable, Sendable {
     let hasUnreads: Bool
     let mentionCount: Int
+    let latest: String?
 
     enum CodingKeys: String, CodingKey {
         case hasUnreads = "has_unreads"
         case mentionCount = "mention_count"
+        case latest
+    }
+
+    /// Parse the `latest` Slack timestamp (e.g., "1771625714.453859") into a Date
+    var latestDate: Date? {
+        guard let latest, let seconds = Double(latest.split(separator: ".").first ?? "") else {
+            return nil
+        }
+        return Date(timeIntervalSince1970: seconds)
     }
 }
 
