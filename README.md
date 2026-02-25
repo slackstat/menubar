@@ -68,7 +68,7 @@ See [SECURITY.md](SECURITY.md) for details on what SlackStat accesses and respon
 
 - **Single workspace only** — SlackStat works with one Slack workspace at a time (the first one found in your Slack app). Enterprise Grid setups with multiple workspaces are not supported.
 - **Unsigned binary** — The app is not signed with an Apple Developer certificate, so Gatekeeper will block it on first launch (see install instructions above).
-- **Requires Slack desktop app** — SlackStat reads tokens from the Slack desktop app. It does not work with Slack in a browser.
+- **Requires Slack desktop app** — SlackStat reads tokens from the Slack desktop app (both direct download and Mac App Store versions are supported). It does not work with Slack in a browser.
 - **Threads have limited support** — Slack's API does not provide a timestamp for the most recent thread reply, so threads show an unread count without a relative time (e.g., `🧵 3` instead of `🧵 3 (5m)`). Additionally, Slack has no deep link URI for the Threads view, so clicking Threads in the dropdown opens Slack but cannot navigate directly to your threads.
 
 ## Configuration
