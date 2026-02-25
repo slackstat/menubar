@@ -194,6 +194,19 @@ import Foundation
     #expect(!title.contains("# "))
 }
 
+@Test func testMenuBarTitleThreadsWithoutTimestamp() {
+    let now = Date()
+    let agg = AggregatedCounts(
+        totalThreads: 3,
+        mostRecentThread: nil
+    )
+    let title = MenuBarTitle.format(aggregated: agg, now: now)
+    #expect(title.contains("\u{1F9F5}"))
+    #expect(title.contains("3"))
+    // No relative time when timestamp is unavailable
+    #expect(title == "\u{1F9F5} 3")
+}
+
 @Test func testMenuBarTitleEmptyWhenNoActivity() {
     let agg = AggregatedCounts()
     let title = MenuBarTitle.format(aggregated: agg, now: Date())

@@ -6,9 +6,9 @@ SlackStat is a native macOS menu bar app that shows your Slack unread message co
 
 ## Features
 
-- **Menu bar counts** — See unread DMs, mentions, and channel messages with relative timestamps: `💬 4 (3m)  @ 2 (1h)  # 15 (45m)`
+- **Menu bar counts** — See unread DMs, mentions, threads, and channel messages with relative timestamps: `💬 4 (3m)  @ 2 (1h)  🧵 1  # 15 (45m)`
 - **Sidebar grouping** — Conversations organized by your actual Slack sidebar sections (Starred, custom sections, etc.)
-- **Deep links** — Click any conversation to open it directly in Slack
+- **Deep links** — Click any conversation to open it directly in Slack (threads open Slack without navigating to a specific view)
 - **Launch at login** — Start automatically with macOS
 - **Zero dependencies** — Pure Swift Package Manager project, no external libraries
 - **Privacy-first** — All data stays on your machine. No telemetry, no analytics, no third-party services.
@@ -69,6 +69,7 @@ See [SECURITY.md](SECURITY.md) for details on what SlackStat accesses and respon
 - **Single workspace only** — SlackStat works with one Slack workspace at a time (the first one found in your Slack app). Enterprise Grid setups with multiple workspaces are not supported.
 - **Unsigned binary** — The app is not signed with an Apple Developer certificate, so Gatekeeper will block it on first launch (see install instructions above).
 - **Requires Slack desktop app** — SlackStat reads tokens from the Slack desktop app. It does not work with Slack in a browser.
+- **Threads have limited support** — Slack's API does not provide a timestamp for the most recent thread reply, so threads show an unread count without a relative time (e.g., `🧵 3` instead of `🧵 3 (5m)`). Additionally, Slack has no deep link URI for the Threads view, so clicking Threads in the dropdown opens Slack but cannot navigate directly to your threads.
 
 ## Configuration
 

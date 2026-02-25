@@ -311,7 +311,7 @@ final class StateStore: ObservableObject {
                 items.append(ConversationItem(
                     id: "__threads__", name: "Threads", type: .thread, teamId: teamId,
                     hasUnreads: threads.hasUnreads, mentionCount: threads.mentionCount,
-                    latestTimestamp: Date()))
+                    latestTimestamp: threads.latestDate))
             }
 
             return (items, badges)
